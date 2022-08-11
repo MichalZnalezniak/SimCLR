@@ -1,4 +1,6 @@
 #!/usr/bin/python
+
+# the file is a copy from repo https://github.com/tdedecko/hungarian-algorithm
 """
 Implementation of the Hungarian (Munkres) Algorithm using Python and NumPy
 References: http://www.ams.jhu.edu/~castello/362/Handouts/hungarian.pdf
