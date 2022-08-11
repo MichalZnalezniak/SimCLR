@@ -18,6 +18,10 @@ import seaborn as sn
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy
+import numpy as np
+import itertools
+from bisect import bisect
+from hungarian import Hungarian, HungarianError, CoverZeros
 from torch.distributions import Categorical
 from sklearn.metrics import accuracy_score, adjusted_rand_score, normalized_mutual_info_score
 from data_aug.contrastive_learning_dataset import ContrastiveLearningDataset, CIFAROnlyKClasses
@@ -78,6 +82,77 @@ parser.add_argument('--per_level', default=False, action="store_true", help="Nor
 parser.add_argument('--per_node', default=False, action="store_true", help="Normalize to uniform")
 def arctang(p): 
     return torch.log(p/((1-p)+ 1e-8))
+
+def LeafPurity(df):
+    lp=numpy.sum(numpy.max(df,axis=0))/df.values.sum()
+    return lp
+
+def LeafPurity_mean(df):
+    lp=numpy.mean(numpy.max(df,axis=0)/numpy.sum(df))
+    return lp
+
+def tree_acc(df):
+    df = df.loc[:, (df != 0).any(axis=0)]
+    m = df.values.sum()
+    df = df.values.tolist()
+    hungarian = Hungarian()
+    hungarian.calculate(df, is_profit_matrix=True)
+    acc = 1.0*hungarian.get_total_potential()/m
+    return acc
+
+def lca(level_number, i, j):
+    if i!=j:
+        left_ancestors = get_ancestors(level_number, i)
+        right_ancestors = get_ancestors(level_number, j)
+        lca_index = next(i for i, (el1, el2) in enumerate(zip(left_ancestors, right_ancestors)) if el1 == el2)
+        lca_value=left_ancestors[lca_index]
+    else:
+        lca_index=-1
+        lca_value=i
+    return [level_number - lca_index - 1, lca_value] # return level and index
+
+def get_ancestor(i):
+    return int(np.floor(i/2.0))
+
+def get_ancestors(level_number,i):
+    ancestors=[]
+    for level in range(level_number):
+        i=get_ancestor(i)
+        ancestors.append(i)
+    return ancestors
+
+def get_descendants(level, level_number, node_index):
+    if level < level_number:
+        left_index = node_index
+        right_index = node_index
+        for l in range(level_number-level):
+            left_index = 2 * left_index
+            right_index = 2 * right_index + 1
+        descendants = np.arange(left_index,right_index+1,1)
+        descendants = descendants.tolist()
+    else:
+        descendants = []
+        descendants.append(node_index)
+    return descendants
+
+def dendrogram_purity(df, level_number):
+    df_list = df.values.tolist()
+    purity = 0
+    cnt = 0
+    for Ck in range(len(df_list)):
+        iter_ll = list(itertools.accumulate(df_list[Ck]))
+        class_count = int(iter_ll[-1])
+        for i in range(class_count):
+            for j in range(i+1, class_count):
+                index_i = bisect(iter_ll, i)
+                index_j = bisect(iter_ll, j)
+                cnt += 1
+                lca_set = lca(level_number,index_i, index_j)
+                leaves = get_descendants(lca_set[0], level_number, lca_set[-1])
+                purity += (np.sum(df_list[Ck][leaves[0]:leaves[-1]+1]) )/(df.iloc[:, leaves[0]:leaves[-1]+1].values.sum() )
+    purity /= cnt
+    return purity
+
 
 def eval_classification():
     torch.autograd.set_detect_anomaly(True)
@@ -393,8 +468,14 @@ def eval():
     image = transforms.ToTensor()(image)          
     writer.add_image(f'Comparing histogram for cluster vs histogram for labels', image)
     for level in range(1, args.level_number+1): 
+        df_cm = pd.DataFrame(histograms_for_each_label_per_level[level], index = [class1 for class1 in classes], columns = [i for i in range(0,2**level)])
         writer.add_scalar(f'adjusted_rand_score_at_{level}', adjusted_rand_score(labels, predictions[level]))
+        writer.add_scalar(f'Leaf_Purity_at_{level}', LeafPurity(df_cm))
+        writer.add_scalar(f'Average_Leaf_Purity_at_{level}', LeafPurity_mean(df_cm))
     writer.add_scalar('normalized_mutual_info_score_value', normalized_mutual_info_score(labels, predictions[args.level_number]))
+    df_cm = pd.DataFrame(histograms_for_each_label_per_level[args.level_number], index = [class1 for class1 in classes], columns = [i for i in range(0,2**args.level_number)])
+    writer.add_scalar('Tree_accuracy', tree_acc(df_cm))
+    writer.add_scalar('Dendrogram_Purity', dendrogram_purity(df_cm,args.level_number))
     writer.close()
 
 if __name__ == "__main__":
