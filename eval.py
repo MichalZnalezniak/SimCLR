@@ -153,6 +153,32 @@ def dendrogram_purity(df, level_number):
     purity /= cnt
     return purity
 
+def distance(df, level_number, class_index_A, class_index_B):
+    dist=0.0
+    count=0
+    df_list = df.values.tolist()
+    iter_ll_A = list(itertools.accumulate(df_list[class_index_A]))
+    class_count_A = int(iter_ll_A[-1])
+    iter_ll_B = list(itertools.accumulate(df_list[class_index_B]))
+    class_count_B = int(iter_ll_B[-1])
+    for i in range(class_count_A):
+        for j in range(class_count_B):
+            count+=1
+            index_A = bisect(iter_ll_A, i)
+            index_B = bisect(iter_ll_B, j)
+            lca_set = lca(level_number,index_A, index_B)
+            dist += level_number - lca_set[0]
+    dist=1.0*dist/count
+    return dist
+
+def get_dist_matrix(df,level_number):
+    nb_of_classes = (df.values).shape[0]
+    dist_matrix=np.zeros((nb_of_classes,nb_of_classes))
+    for i in range(nb_of_classes):
+        for j in range(i+1,nb_of_classes):
+            dist_matrix[i][j] = dist_matrix[j][i] = distance(df, level_number, i, j)
+    return dist_matrix
+
 
 def eval_classification():
     torch.autograd.set_detect_anomaly(True)
@@ -474,8 +500,21 @@ def eval():
         writer.add_scalar(f'Average_Leaf_Purity_at_{level}', LeafPurity_mean(df_cm))
     writer.add_scalar('normalized_mutual_info_score_value', normalized_mutual_info_score(labels, predictions[args.level_number]))
     df_cm = pd.DataFrame(histograms_for_each_label_per_level[args.level_number], index = [class1 for class1 in classes], columns = [i for i in range(0,2**args.level_number)])
+    dist_matrix = get_dist_matrix(df_cm, args.level_number)
     writer.add_scalar('Tree_accuracy', tree_acc(df_cm))
     writer.add_scalar('Dendrogram_Purity', dendrogram_purity(df_cm,args.level_number))
+    plt.figure(figsize=(15, 15))
+    plt.title(f'Class distance - heatmap')
+    plt.xlabel('Class number')
+    plt.ylabel('Class number')
+    sn.color_palette("Spectral", as_cmap=True)
+    sn.heatmap(dist_matrix, annot=True, vmin=0.0, vmax=args.level_number, fmt='.3f')
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+    image = PIL.Image.open(buf)
+    image = transforms.ToTensor()(image)
+    writer.add_image(f'Class distance - heatmap', image)
     writer.close()
 
 if __name__ == "__main__":
