@@ -5,8 +5,7 @@ import torch.nn.functional as F
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from utils import save_config_file, accuracy, save_checkpoint
-from torchvision import datasets, transforms
+from utils import save_config_file, save_checkpoint
 
 class SimCLR(object):
 
@@ -15,7 +14,7 @@ class SimCLR(object):
         self.model = kwargs['model'].to(self.args.device)
         self.optimizer = kwargs['optimizer']
         self.scheduler = kwargs['scheduler']
-        self.writer = SummaryWriter(log_dir=f"./runs/{self.args.dataset_name}_TreeLevel{self.args.level_number}_lossAtAll{self.args.loss_at_all_level}_reg{self.args.regularization}reg_att_all{self.args.regularization_at_all_level}_pernode{self.args.per_node}_perlevel{self.args.per_level}")
+        self.writer = SummaryWriter(log_dir=f"./runs/{self.args.dataset_name}_TreeLevel{self.args.level_number}_lossAtAll{self.args.loss_at_all_level}_reg{self.args.regularization}reg_att_all{self.args.regularization_at_all_level}")
         logging.basicConfig(filename=os.path.join(self.writer.log_dir, 'training.log'), level=logging.DEBUG)
         self.criterion = torch.nn.CrossEntropyLoss().to(self.args.device)
 
@@ -152,12 +151,9 @@ class SimCLR(object):
                                 probability_leaves_masked = self.masks_for_level[level] * probability_leaves
                                 mean_of_probs_per_level_per_epoch[level] += probability_leaves_masked
                                 probability_leaves_masked = probability_leaves_masked + 1e-8
-                                if self.args.per_level:
-                                    loss_reg += (-torch.sum((1/(2**level)) * torch.log(probability_leaves_masked)))
-                                if self.args.per_node:
-                                    for leftnode in range(0,int((2**level)/2)):
-                                        if not (self.masks_for_level[level][2*leftnode] == 0 or self.masks_for_level[level][2*leftnode+1] == 0):
-                                            loss_reg -=  (0.5 * torch.log(probability_leaves_masked[2*leftnode]) + 0.5 * torch.log(probability_leaves_masked[2*leftnode+1]))
+                                for leftnode in range(0,int((2**level)/2)):
+                                    if not (self.masks_for_level[level][2*leftnode] == 0 or self.masks_for_level[level][2*leftnode+1] == 0):
+                                        loss_reg -=  (0.5 * torch.log(probability_leaves_masked[2*leftnode]) + 0.5 * torch.log(probability_leaves_masked[2*leftnode+1]))
                         else:
                             loss_reg = torch.tensor([0], device=self.args.device, dtype=torch.float32)
                             prob_features = self.probability_vec_with_level(features, self.args.level_number)
@@ -165,12 +161,9 @@ class SimCLR(object):
                             probability_leaves_masked = self.masks_for_level[self.args.level_number] * probability_leaves
                             mean_of_probs_per_level_per_epoch[self.args.level_number] += probability_leaves_masked
                             probability_leaves_masked = probability_leaves_masked + 1e-8
-                            if self.args.per_level:
-                                loss_reg += (-torch.sum((1/(2**self.args.level_number)) * torch.log(probability_leaves_masked)))
-                            if self.args.per_node:
-                                for leftnode in range(0,int((2**self.args.level_number)/2)):
-                                    if not (self.masks_for_level[self.args.level_number][2*leftnode] == 0 or self.masks_for_level[self.args.level_number][2*leftnode+1] == 0):
-                                        loss_reg -=  (0.5 * torch.log(probability_leaves_masked[2*leftnode]) + 0.5 * torch.log(probability_leaves_masked[2*leftnode+1]))
+                            for leftnode in range(0,int((2**self.args.level_number)/2)):
+                                if not (self.masks_for_level[self.args.level_number][2*leftnode] == 0 or self.masks_for_level[self.args.level_number][2*leftnode+1] == 0):
+                                    loss_reg -=  (0.5 * torch.log(probability_leaves_masked[2*leftnode]) + 0.5 * torch.log(probability_leaves_masked[2*leftnode+1]))
                         loss_sum += (1/(2**self.args.level_number)) * loss_reg
                 
                 self.optimizer.zero_grad()

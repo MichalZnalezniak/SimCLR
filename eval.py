@@ -1,7 +1,4 @@
-import logging
 import io
-import socket
-from datetime import datetime
 from models.resnet_simclr import ResNetSimCLR
 from simclr import SimCLR
 import torch.backends.cudnn as cudnn
@@ -17,16 +14,11 @@ import glob
 import seaborn as sn
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy
 import numpy as np
-import itertools
-from bisect import bisect
-from hungarian import Hungarian, HungarianError, CoverZeros
-from torch.distributions import Categorical
-from sklearn.metrics import accuracy_score, adjusted_rand_score, normalized_mutual_info_score
+from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
 from data_aug.contrastive_learning_dataset import ContrastiveLearningDataset, CIFAROnlyKClasses
-import collections
-from sklearn.cluster import AgglomerativeClustering
+from torchvision.utils import save_image
+from metrics import *
 import os
 
 model_names = sorted(name for name in models.__dict__
@@ -75,113 +67,11 @@ parser.add_argument('--n-views', default=2, type=int, metavar='N',
 parser.add_argument('--gpu-index', default=0, type=int, help='Gpu index.')
 parser.add_argument('--level_number', default=3, type=int, help='Number of nodes of the binary tree')
 parser.add_argument('--save_point', default=".", type=str, help="Path to .pth ")
-parser.add_argument("--gumbel", default=False, action="store_true",help="If gumbel sigmoid is used")
-parser.add_argument("--temp", default=1.0,type=float,help='temp for gumbel softmax/sigmoid')
-parser.add_argument("--loss_at_all_level", default=False, action="store_true",
-                    help="Flag to do something")
 parser.add_argument('--regularization', default=False, action="store_true", help="Normalize to uniform")
 parser.add_argument('--regularization_at_all_level', default=False, action="store_true", help="If regularization on all levels")
-parser.add_argument('--per_level', default=False, action="store_true", help="Normalize to uniform")
-parser.add_argument('--per_node', default=False, action="store_true", help="Normalize to uniform")
-parser.add_argument('--start_pruning_epoch',  default=100, type=int, help='Epoch when pruning tree starts pruning')
-parser.add_argument('--nodes_to_prune', default=6, type=int, help='Amount of pruned nodes' )
-
-def LeafPurity(df):
-    lp=numpy.sum(numpy.max(df,axis=0))/df.values.sum()
-    return lp
-
-def LeafPurity_mean(df):
-    lp=numpy.mean(numpy.max(df,axis=0)/numpy.sum(df))
-    return lp
-
-def tree_acc(df):
-    df = df.loc[:, (df != 0).any(axis=0)]
-    m = df.values.sum()
-    df = df.values.tolist()
-    hungarian = Hungarian()
-    hungarian.calculate(df, is_profit_matrix=True)
-    acc = 1.0*hungarian.get_total_potential()/m
-    return acc
-
-def lca(level_number, i, j):
-    if i!=j:
-        left_ancestors = get_ancestors(level_number, i)
-        right_ancestors = get_ancestors(level_number, j)
-        lca_index = next(i for i, (el1, el2) in enumerate(zip(left_ancestors, right_ancestors)) if el1 == el2)
-        lca_value=left_ancestors[lca_index]
-    else:
-        lca_index=-1
-        lca_value=i
-    return [level_number - lca_index - 1, lca_value] # return level and index
-
-def get_ancestor(i):
-    return int(np.floor(i/2.0))
-
-def get_ancestors(level_number,i):
-    ancestors=[]
-    for level in range(level_number):
-        i=get_ancestor(i)
-        ancestors.append(i)
-    return ancestors
-
-def get_descendants(level, level_number, node_index):
-    if level < level_number:
-        left_index = node_index
-        right_index = node_index
-        for l in range(level_number-level):
-            left_index = 2 * left_index
-            right_index = 2 * right_index + 1
-        descendants = np.arange(left_index,right_index+1,1)
-        descendants = descendants.tolist()
-    else:
-        descendants = []
-        descendants.append(node_index)
-    return descendants
-
-def dendrogram_purity(df, level_number):
-    df_list = df.values.tolist()
-    purity = 0
-    cnt = 0
-    for Ck in range(len(df_list)):
-        iter_ll = list(itertools.accumulate(df_list[Ck]))
-        class_count = int(iter_ll[-1])
-        for i in range(class_count):
-            for j in range(i+1, class_count):
-                index_i = bisect(iter_ll, i)
-                index_j = bisect(iter_ll, j)
-                cnt += 1
-                lca_set = lca(level_number,index_i, index_j)
-                leaves = get_descendants(lca_set[0], level_number, lca_set[-1])
-                purity += (np.sum(df_list[Ck][leaves[0]:leaves[-1]+1]) )/(df.iloc[:, leaves[0]:leaves[-1]+1].values.sum() )
-    purity /= cnt
-    return purity
-
-def distance(df, level_number, class_index_A, class_index_B):
-    dist=0.0
-    count=0
-    df_list = df.values.tolist()
-    iter_ll_A = list(itertools.accumulate(df_list[class_index_A]))
-    class_count_A = int(iter_ll_A[-1])
-    iter_ll_B = list(itertools.accumulate(df_list[class_index_B]))
-    class_count_B = int(iter_ll_B[-1])
-    for i in range(class_count_A):
-        for j in range(class_count_B):
-            count+=1
-            index_A = bisect(iter_ll_A, i)
-            index_B = bisect(iter_ll_B, j)
-            lca_set = lca(level_number,index_A, index_B)
-            dist += level_number - lca_set[0]
-    dist=1.0*dist/count
-    return dist
-
-def get_dist_matrix(df,level_number):
-    nb_of_classes = (df.values).shape[0]
-    dist_matrix=np.zeros((nb_of_classes,nb_of_classes))
-    for i in range(nb_of_classes):
-        for j in range(i+1,nb_of_classes):
-            dist_matrix[i][j] = dist_matrix[j][i] = distance(df, level_number, i, j)
-    return dist_matrix
-
+parser.add_argument("--loss_at_all_level", default=False, action="store_true",
+                    help="if true calculate loss on all levels of tree")
+                    
 def eval():
     args = parser.parse_args()
     assert args.n_views == 2, "Only two view training is supported. Please use --n-views 2."
@@ -199,7 +89,7 @@ def eval():
     # Load .pth
     model_file = glob.glob(args.save_point + "/*.pth.tar")
     print(model_file[0])
-    checkpoint = torch.load(model_file[0])
+    checkpoint = torch.load(model_file[0], map_location=args.device)
     
     model = ResNetSimCLR(base_model=args.arch, out_dim=args.out_dim, args=args)
     print(model)
@@ -239,13 +129,15 @@ def eval():
         classes = ('1', '2', '3',
            '4', '5', '6', '7', '8', '9', '0')  
     valid_loader = torch.utils.data.DataLoader(validset, batch_size=1, shuffle=True, num_workers=4, pin_memory=True, drop_last=True)
-    histograms_for_each_label_per_level = {level : numpy.array([numpy.zeros_like(torch.empty(2**level)) for i in range(0, 10)])  for level in range(1, args.level_number+1)}
-    image_for_each_cluster_per_level = {level : numpy.array([numpy.zeros_like(image_shape) for i in range(0,2**args.level_number)])  for level in range(1, args.level_number+1)}
+    histograms_for_each_label_per_level = {level : np.array([np.zeros_like(torch.empty(2**level)) for i in range(0, 10)])  for level in range(1, args.level_number+1)}
+    image_for_each_cluster_per_level = {level : np.array([np.zeros_like(image_shape) for i in range(0,2**args.level_number)])  for level in range(1, args.level_number+1)}
+    images_in_leaves = {level : {key:0 for key in range(0,10)}  for level in range(0, 16)}
+
     model.eval()
     labels = []
     predictions = {level: [] for level in range(1, args.level_number + 1)}
     for i, (image, label) in enumerate(tqdm(valid_loader)):
-        image, label = image.cuda(), label.cuda()
+        image, label = image.to(args.device), label.to(args.device)
         feature = model(image) 
         labels.append(label.detach().cpu().item())
         for level in range(1, args.level_number+1):
@@ -254,6 +146,16 @@ def eval():
             histograms_for_each_label_per_level[level][label.item()][torch.argmax(prob_features_masked).item()] += 1
             image_for_each_cluster_per_level[level][torch.argmax(prob_features_masked).item()] += (image.squeeze().cpu().detach()).numpy()
             predictions[level].append(torch.argmax(prob_features_masked.detach().cpu()).unsqueeze(dim=0).item())
+            if level == 4:
+                if images_in_leaves[torch.argmax(prob_features_masked).item()][label.item()] < 20:
+                    images_in_leaves[torch.argmax(prob_features_masked).item()][label.item()] += 1
+                    os.makedirs(f"./{torch.argmax(prob_features_masked).item()}/{label.item()}", exist_ok=True)
+                    # plt.imsave(f'./{torch.argmax(prob_features_masked).item()}/{label.item()}/image_{images_in_leaves[torch.argmax(prob_features_masked).item()][label.item()]}.png', numpy.transpose(image.squeeze(0), (1, 2, 0)))
+                    save_image(image.squeeze(0), f'./{torch.argmax(prob_features_masked).item()}/{label.item()}/image_{images_in_leaves[torch.argmax(prob_features_masked).item()][label.item()]}.png')
+
+
+
+
     for level in range(1, args.level_number+1):
         df_cm = pd.DataFrame(histograms_for_each_label_per_level[level], index = [class1 for class1 in classes],
                     columns = [i for i in range(0,2**level)])
@@ -274,7 +176,7 @@ def eval():
             sum_per_label = sum([histograms_for_each_label_per_level[level][k][u] for k in range(0,10)])
             img = image_for_each_cluster_per_level[level][u] / sum_per_label
             if args.dataset_name == 'cifar10' or args.dataset_name == 'svhn':
-                plt.imshow(numpy.transpose(img, (1, 2, 0)))
+                plt.imshow(np.transpose(img, (1, 2, 0)))
             else:
                 plt.imshow(img, cmap='gray')
             buf = io.BytesIO()
