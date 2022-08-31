@@ -7,6 +7,7 @@ from simclr import SimCLR
 import torch.backends.cudnn as cudnn
 import torch
 from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import Subset
 from tqdm import tqdm
 from torchvision import datasets, transforms
 import matplotlib.pyplot as plt
@@ -37,7 +38,7 @@ parser = argparse.ArgumentParser(description='PyTorch SimCLR')
 parser.add_argument('-data', metavar='DIR', default='./datasets',
                     help='path to dataset')
 parser.add_argument('-dataset-name', default='stl10',
-                    help='dataset name', choices=['stl10', 'cifar10', 'mnist', 'svhn', 'fmnist'])
+                    help='dataset name', choices=['stl10', 'cifar10', 'cifar100', 'mnist', 'svhn', 'fmnist', 'imagenet10','imagenetdogs'])
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet18',
                     choices=model_names,
                     help='model architecture: ' +
@@ -219,6 +220,42 @@ def eval():
         image_shape = torch.empty((3, 32, 32)) 
         classes = ('plane', 'car', 'bird', 'cat',
            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+    if args.dataset_name == 'cifar100':
+        validset = datasets.CIFAR100('./', train=False, 
+            transform=transforms.Compose([
+                transforms.ToTensor()
+                # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                ]
+        ), download=True)  
+        image_shape = torch.empty((3, 32, 32)) 
+        cifar100superclass = ["aquatic mammals","fish","flowers", "food containers", "fruit and vegetables", "household electrical devices", 
+                            "household furniture", "insects", "large carnivores", "large man-made outdoor things", 
+                            "large natural outdoor scenes", "large omnivores and herbivores", "medium-sized mammals",
+                            "non-insect invertebrates", "people", "reptiles", "small mammals", "trees", "vehicles 1", "vehicles 2"]
+        cifar100class = [['beaver', 'dolphin', 'otter', 'seal', 'whale'],
+                            ['aquarium_fish', 'flatfish', 'ray', 'shark', 'trout'],
+                            ['orchid', 'poppy', 'rose', 'sunflower', 'tulip'],
+                            ['bottle', 'bowl', 'can', 'cup', 'plate'],
+                            ['apple', 'mushroom', 'orange', 'pear', 'sweet_pepper'],
+                            ['clock', 'keyboard', 'lamp', 'telephone', 'television'],
+                            ['bed', 'chair', 'couch', 'table', 'wardrobe'],
+                            ['bee', 'beetle', 'butterfly', 'caterpillar', 'cockroach'],
+                            ['bear', 'leopard', 'lion', 'tiger', 'wolf'],
+                            ['bridge', 'castle', 'house', 'road', 'skyscraper'],
+                            ['cloud', 'forest', 'mountain', 'plain', 'sea'],
+                            ['camel', 'cattle', 'chimpanzee', 'elephant', 'kangaroo'],
+                            ['fox', 'porcupine', 'possum', 'raccoon', 'skunk'],
+                            ['crab', 'lobster', 'snail', 'spider', 'worm'],
+                            ['baby', 'boy', 'girl', 'man', 'woman'],
+                            ['crocodile', 'dinosaur', 'lizard', 'snake', 'turtle'],
+                            ['hamster', 'mouse', 'rabbit', 'shrew', 'squirrel'],
+                            ['maple_tree', 'oak_tree', 'palm_tree', 'pine_tree', 'willow_tree'],
+                            ['bicycle', 'bus', 'motorcycle', 'pickup_truck', 'train'],
+                            ['lawn_mower', 'rocket', 'streetcar', 'tank', 'tractor']]
+        cifar100dict = {validset.class_to_idx[c]: i for i, sc in enumerate(cifar100superclass) for c in cifar100class[i]}
+        for i, t in enumerate(validset.targets):
+            validset.targets[i] = cifar100dict[validset.targets[i]]
+        classes = tuple(cifar100superclass)
     elif args.dataset_name == 'mnist':
         validset = datasets.MNIST('./', train=False, transform=transforms.ToTensor(), download=True)
         image_shape = torch.empty((28, 28)) 
@@ -238,13 +275,58 @@ def eval():
         image_shape = torch.empty((3, 32, 32)) 
         classes = ('1', '2', '3',
            '4', '5', '6', '7', '8', '9', '0')  
+    elif args.dataset_name == 'stl10':
+        validset = datasets.STL10('./', split='test', transform=transforms.ToTensor(), download=False)
+        image_shape = torch.empty((3, 96, 96)) 
+        classes = ('airplane', 'bird', 'car', 'cat', 'deer', 'dog', 'horse', 'monkey', 'ship', 'truck')
+    elif args.dataset_name == 'imagenet10' or args.dataset_name == 'imagenetdogs':
+        validset = datasets.ImageNet('/shared/sets/datasets/vision/ImageNet', split='val', transform=transforms.Compose([transforms.Resize((224,224)),transforms.ToTensor()]))
+        image_shape = torch.empty((3, 224, 224))
+        if args.dataset_name == 'imagenet10':
+            subset_winds = [
+                "n02056570",
+                "n02085936",
+                "n02128757",
+                "n02690373",
+                "n02692877",
+                "n03095699",
+                "n04254680",
+                "n04285008",
+                "n04467665",
+                "n07747607"
+            ]
+        else:
+            subset_winds = [
+                "n02085936",
+                "n02086646",
+                "n02088238",
+                "n02091467",
+                "n02097130",
+                "n02099601",
+                "n02101388",
+                "n02101556",
+                "n02102177",
+                "n02105056",
+                "n02105412",
+                "n02105855",
+                "n02107142",
+                "n02110958",
+                "n02112137"
+            ]
+        subset_idx = [idx for idx, target in enumerate(validset.wnids) if target in subset_winds]
+        subset_indices = [idx for idx, target in enumerate(validset.targets) if target in subset_idx]
+        class_names = validset.classes
+        classes = tuple([class_names[c][0] for c in subset_idx])
+        validset = Subset(validset, subset_indices)
     valid_loader = torch.utils.data.DataLoader(validset, batch_size=1, shuffle=True, num_workers=4, pin_memory=True, drop_last=True)
-    histograms_for_each_label_per_level = {level : numpy.array([numpy.zeros_like(torch.empty(2**level)) for i in range(0, 10)])  for level in range(1, args.level_number+1)}
+    histograms_for_each_label_per_level = {level : numpy.array([numpy.zeros_like(torch.empty(2**level)) for i in range(0, len(classes))])  for level in range(1, args.level_number+1)}
     image_for_each_cluster_per_level = {level : numpy.array([numpy.zeros_like(image_shape) for i in range(0,2**args.level_number)])  for level in range(1, args.level_number+1)}
     model.eval()
     labels = []
     predictions = {level: [] for level in range(1, args.level_number + 1)}
     for i, (image, label) in enumerate(tqdm(valid_loader)):
+        if args.dataset_name == 'imagenet10' or args.dataset_name == 'imagenetdogs':
+            label = torch.Tensor([subset_idx.index(label)]).to(dtype=torch.int64)
         image, label = image.cuda(), label.cuda()
         feature = model(image) 
         labels.append(label.detach().cpu().item())
@@ -257,23 +339,39 @@ def eval():
     for level in range(1, args.level_number+1):
         df_cm = pd.DataFrame(histograms_for_each_label_per_level[level], index = [class1 for class1 in classes],
                     columns = [i for i in range(0,2**level)])
+        df_cm = df_cm.loc[:, (df_cm != 0).any(axis=0)]
         plt.figure(figsize = (15,10))
         plt.title(f'Confusion matrix at level {level}')
         plt.xlabel('Cluster')
         plt.ylabel('Label')
-        sn.heatmap(df_cm, annot=True)
+        sn.heatmap(df_cm,cmap='viridis', annot=True, fmt='g')
         buf = io.BytesIO()
         plt.savefig(buf, format='png')
         buf.seek(0)
         image = PIL.Image.open(buf)
         image = transforms.ToTensor()(image)          
         writer.add_image(f'Confusion matrix at level {level}', image)
+        df_cm_p = df_cm.div(df_cm.sum(axis=1), axis=0)
+        df_cm_p = round(df_cm.div(df_cm.sum(axis=1), axis=0)*100,2)
+        plt.figure(figsize = (15,10))
+        plt.title(f'Confusion matrix at level {level}')
+        plt.xlabel('Cluster')
+        plt.ylabel('Label')
+        ax = sn.heatmap(df_cm_p,cmap='viridis', annot=True, fmt='g')
+        for t in ax.texts:
+            t.set_text(t.get_text() + "%")
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png')
+        buf.seek(0)
+        image = PIL.Image.open(buf)
+        image = transforms.ToTensor()(image)    
+        writer.add_image(f'Confusion matrix at level {level} %', image)
         for u in range(0,2**level):
             plt.figure(figsize = (10,7))
             plt.title(f'Mean of the images at level {level} that ended up in cluster number {u}')
-            sum_per_label = sum([histograms_for_each_label_per_level[level][k][u] for k in range(0,10)])
+            sum_per_label = sum([histograms_for_each_label_per_level[level][k][u] for k in range(0, len(classes))])
             img = image_for_each_cluster_per_level[level][u] / sum_per_label
-            if args.dataset_name == 'cifar10' or args.dataset_name == 'svhn':
+            if args.dataset_name == 'cifar10' or args.dataset_name == 'svhn' or args.dataset_name == 'stl10' or args.dataset_name == 'imagenet10' or args.dataset_name == 'imagenetdogs' or args.dataset_name == 'cifar100':
                 plt.imshow(numpy.transpose(img, (1, 2, 0)))
             else:
                 plt.imshow(img, cmap='gray')
