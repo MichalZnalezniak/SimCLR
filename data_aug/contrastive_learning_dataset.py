@@ -55,14 +55,17 @@ class ContrastiveLearningDataset:
                           'cifar10kclasses': lambda: CIFAROnlyKClasses(self.root_folder,transform=ContrastiveLearningViewGenerator(
                                                                   self.get_simclr_pipeline_transform(32),
                                                                   n_views),classes=(1,3,8)),
-                          
+                          'cifar100': lambda: datasets.CIFAR100(self.root_folder, train=True,
+                                                            transform=ContrastiveLearningViewGenerator(
+                                                                self.get_simclr_pipeline_transform(32),
+                                                                n_views),
+                                                            download=True),
                           'svhn': lambda: datasets.SVHN(self.root_folder, split='train',
                                                           transform=ContrastiveLearningViewGenerator(
                                                               self.get_simclr_pipeline_transform(32),
                                                               n_views),
                                                           download=True),
                           
-
                           'stl10': lambda: datasets.STL10(self.root_folder, split='unlabeled',
                                                           transform=ContrastiveLearningViewGenerator(
                                                               self.get_simclr_pipeline_transform(96),
@@ -78,7 +81,17 @@ class ContrastiveLearningDataset:
                                                           transform=ContrastiveLearningViewGenerator(
                                                               self.get_simclr_pipeline_transform(32),
                                                               n_views),
-                                                          download=True)
+                                                          download=True),
+                            'imagenet10': lambda: datasets.ImageNet('/shared/sets/datasets/vision/ImageNet', split='train', transform=
+                                                            transforms.Compose([transforms.Resize((224,224)),
+                                                            ContrastiveLearningViewGenerator(
+                                                              self.get_simclr_pipeline_transform(224),
+                                                              n_views)])),
+                            'imagenetdogs': lambda: datasets.ImageNet('/shared/sets/datasets/vision/ImageNet', split='train', transform=
+                                                            transforms.Compose([transforms.Resize((224,224)),
+                                                            ContrastiveLearningViewGenerator(
+                                                              self.get_simclr_pipeline_transform(224),
+                                                              n_views)])),
                           }
                         
 

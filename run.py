@@ -1,6 +1,7 @@
 import argparse
 import torch
 import torch.backends.cudnn as cudnn
+from torch.utils.data import Subset
 from torchvision import models
 from data_aug.contrastive_learning_dataset import ContrastiveLearningDataset
 from models.resnet_simclr import ResNetSimCLR
@@ -15,7 +16,7 @@ parser = argparse.ArgumentParser(description='PyTorch SimCLR')
 parser.add_argument('-data', metavar='DIR', default='./datasets',
                     help='path to dataset')
 parser.add_argument('-dataset-name', default='stl10',
-                    help='dataset name', choices=['stl10', 'cifar10', 'mnist', 'svhn' , 'fmnist', 'cifar10kclasses'])
+                    help='dataset name', choices=['stl10', 'cifar10', 'cifar100', 'mnist', 'svhn' , 'fmnist', 'cifar10kclasses','imagenet10','imagenetdogs'])
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet18',
                     choices=model_names,
                     help='model architecture: ' +
@@ -85,6 +86,40 @@ def main():
     dataset = ContrastiveLearningDataset(args.data)
 
     train_dataset = dataset.get_dataset(args.dataset_name, args.n_views)
+
+    if args.dataset_name == 'imagenet10' or args.dataset_name == 'imagenetdogs':
+        if args.dataset_name == 'imagenet10':
+            train_winds = [
+                "n02056570",
+                "n02085936",
+                "n02128757",
+                "n02690373",
+                "n02692877",
+                "n03095699",
+                "n04254680",
+                "n04285008",
+                "n04467665",
+                "n07747607"]
+        else:
+            train_winds = [
+            "n02085936",
+            "n02086646",
+            "n02088238",
+            "n02091467",
+            "n02097130",
+            "n02099601",
+            "n02101388",
+            "n02101556",
+            "n02102177",
+            "n02105056",
+            "n02105412",
+            "n02105855",
+            "n02107142",
+            "n02110958",
+            "n02112137"]
+        train_idx = [idx for idx, target in enumerate(train_dataset.wnids) if target in train_winds]
+        train_indices = [idx for idx, target in enumerate(train_dataset.targets) if target in train_idx]
+        train_dataset = Subset(train_dataset, train_indices)
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True,
