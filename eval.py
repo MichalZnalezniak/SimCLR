@@ -115,6 +115,12 @@ def lca(level_number, i, j):
         lca_value=i
     return [level_number - lca_index - 1, lca_value] # return level and index
 
+def get_neighbor(i):
+    if i%2 == 0:
+        return int(i+1)
+    else:
+        return int(i-1)
+
 def get_ancestor(i):
     return int(np.floor(i/2.0))
 
@@ -160,6 +166,8 @@ def dendrogram_purity(df, level_number):
 def distance(df, level_number, class_index_A, class_index_B):
     dist=0.0
     count=0
+    df_nonzero = df.loc[:, (df != 0).any(axis=0)]
+    leaves_index = list(df_nonzero.columns)
     df_list = df.values.tolist()
     iter_ll_A = list(itertools.accumulate(df_list[class_index_A]))
     class_count_A = int(iter_ll_A[-1])
@@ -169,9 +177,28 @@ def distance(df, level_number, class_index_A, class_index_B):
         for j in range(class_count_B):
             count+=1
             index_A = bisect(iter_ll_A, i)
+            neighbor_A = get_neighbor(index_A)
+            ancestor_A = get_ancestor(index_A)
+            neighbor_parentA = get_neighbor(ancestor_A)
+            neighbor_parentA_desc = get_descendants(level_number-1, level_number, neighbor_parentA)
             index_B = bisect(iter_ll_B, j)
+            neighbor_B = get_neighbor(index_B)
+            ancestor_B = get_ancestor(index_B)
+            neighbor_parentB = get_neighbor(ancestor_B)
+            neighbor_parentB_desc = get_descendants(level_number-1, level_number, neighbor_parentB)
             lca_set = lca(level_number,index_A, index_B)
-            dist += level_number - lca_set[0]
+            dist_AB = 2*(level_number - lca_set[0])
+            if neighbor_A not in leaves_index:
+                dist_AB-=1
+            if neighbor_B not in leaves_index:
+                dist_AB-=1
+            if ancestor_A != ancestor_B:
+                if all(elem not in leaves_index for elem in neighbor_parentA_desc):
+                    dist_AB-=1
+                if all(elem not in leaves_index for elem in neighbor_parentB_desc):
+                    dist_AB-=1
+            dist_AB = max(0,dist_AB)
+            dist += dist_AB
     dist=1.0*dist/count
     return dist
 
@@ -179,7 +206,7 @@ def get_dist_matrix(df,level_number):
     nb_of_classes = (df.values).shape[0]
     dist_matrix=np.zeros((nb_of_classes,nb_of_classes))
     for i in range(nb_of_classes):
-        for j in range(i+1,nb_of_classes):
+        for j in range(i,nb_of_classes):
             dist_matrix[i][j] = dist_matrix[j][i] = distance(df, level_number, i, j)
     return dist_matrix
 
@@ -404,11 +431,15 @@ def eval():
     writer.add_scalar('Tree_accuracy', tree_acc(df_cm))
     writer.add_scalar('Dendrogram_Purity', dendrogram_purity(df_cm,args.level_number))
     plt.figure(figsize=(15, 15))
-    plt.title(f'Class distance - heatmap')
+    #plt.title(f'Class distance - heatmap')
     plt.xlabel('Class number')
     plt.ylabel('Class number')
     sn.color_palette("Spectral", as_cmap=True)
-    sn.heatmap(dist_matrix, annot=True, vmin=0.0, vmax=args.level_number, fmt='.3f')
+    sn.set(font_scale=1.4)
+    plt.xticks(rotation='horizontal', fontsize=20)
+    plt.yticks(rotation='horizontal', fontsize=20)
+    heat_map = sn.heatmap(dist_matrix, annot=True, vmin=0.0, vmax=2*args.level_number, fmt='.1f')
+    heat_map.set_yticklabels(heat_map.get_yticklabels(), rotation=0)
     buf = io.BytesIO()
     plt.savefig(buf, format='png')
     buf.seek(0)
