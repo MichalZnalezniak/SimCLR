@@ -63,10 +63,10 @@ class GumbelSigmoid(nn.Module):
             return torch.sigmoid(input)
             
 
-class ResNetSimCLR(nn.Module):
+class ResNetHCH(nn.Module):
 
     def __init__(self, base_model, out_dim, args=None):
-        super(ResNetSimCLR, self).__init__()
+        super(ResNetHCH, self).__init__()
         self.resnet_dict = {"resnet18": models.resnet18(pretrained=False, num_classes=out_dim),
                             "resnet34": models.resnet34(pretrained=False, num_classes=out_dim),
                             "resnet50": models.resnet50(pretrained=False, num_classes=out_dim)}

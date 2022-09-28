@@ -1,9 +1,6 @@
-import logging
 import io
-import socket
-from datetime import datetime
-from models.resnet_simclr import ResNetSimCLR
-from simclr import SimCLR
+from models.resnet_simclr import ResNetHCH
+from chc import HCH
 import torch.backends.cudnn as cudnn
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -22,13 +19,8 @@ import numpy
 import numpy as np
 import itertools
 from bisect import bisect
-from hungarian import Hungarian, HungarianError, CoverZeros
-from torch.distributions import Categorical
-from sklearn.metrics import accuracy_score, adjusted_rand_score, normalized_mutual_info_score
-from data_aug.contrastive_learning_dataset import ContrastiveLearningDataset, CIFAROnlyKClasses
-import collections
-from sklearn.cluster import AgglomerativeClustering
-import os
+from hungarian import Hungarian
+from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -229,14 +221,14 @@ def eval():
     print(model_file[0])
     checkpoint = torch.load(model_file[0])
     
-    model = ResNetSimCLR(base_model=args.arch, out_dim=args.out_dim, args=args)
+    model = ResNetHCH(base_model=args.arch, out_dim=args.out_dim, args=args)
     print(model)
     model.load_state_dict(checkpoint['state_dict'])
     if 'mask' in checkpoint:
         masks_for_level = checkpoint['mask']
     print(masks_for_level)
     model = model.to(args.device)
-    simclr = SimCLR(model=model, optimizer=None, scheduler=None, args=args)
+    simclr = HCH(model=model, optimizer=None, scheduler=None, args=args)
     if args.dataset_name == 'cifar10':
         validset = datasets.CIFAR10('./', train=False, 
             transform=transforms.Compose([

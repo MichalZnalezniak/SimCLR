@@ -4,15 +4,15 @@ import torch.backends.cudnn as cudnn
 from torch.utils.data import Subset
 from torchvision import models
 from data_aug.contrastive_learning_dataset import ContrastiveLearningDataset
-from models.resnet_simclr import ResNetSimCLR
-from simclr import SimCLR
+from models.resnet_simclr import ResNetHCH
+from chc import HCH
 import glob
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
                      and callable(models.__dict__[name]))
 
-parser = argparse.ArgumentParser(description='PyTorch SimCLR')
+parser = argparse.ArgumentParser(description='PyTorch HCH')
 parser.add_argument('-data', metavar='DIR', default='./datasets',
                     help='path to dataset')
 parser.add_argument('-dataset-name', default='stl10',
@@ -125,7 +125,7 @@ def main():
         train_dataset, batch_size=args.batch_size, shuffle=True,
         num_workers=args.workers, pin_memory=True, drop_last=True)
 
-    model = ResNetSimCLR(base_model=args.arch, out_dim=args.out_dim, args=args)
+    model = ResNetHCH(base_model=args.arch, out_dim=args.out_dim, args=args)
     if args.load_model:
         model_file = glob.glob(args.save_point + "/*.pth.tar")
         print(f'Using Pretrained model {model_file[0]}')
@@ -144,7 +144,7 @@ def main():
 
     #  It’s a no-op if the 'gpu_index' argument is a negative integer or None.
     with torch.cuda.device(args.gpu_index):
-        simclr = SimCLR(model=model, optimizer=optimizer, scheduler=scheduler, args=args)
+        simclr = HCH(model=model, optimizer=optimizer, scheduler=scheduler, args=args)
         simclr.train(train_loader)
 
 
