@@ -299,7 +299,7 @@ def eval():
         image_shape = torch.empty((3, 96, 96)) 
         classes = ('airplane', 'bird', 'car', 'cat', 'deer', 'dog', 'horse', 'monkey', 'ship', 'truck')
     elif args.dataset_name == 'imagenet10' or args.dataset_name == 'imagenetdogs':
-        validset = datasets.ImageNet('/shared/sets/datasets/vision/ImageNet', split='val', transform=transforms.Compose([transforms.Resize((224,224)),transforms.ToTensor()]))
+        validset = datasets.ImageNet('./datasets', split='val', transform=transforms.Compose([transforms.Resize((224,224)),transforms.ToTensor()]))
         image_shape = torch.empty((3, 224, 224))
         if args.dataset_name == 'imagenet10':
             subset_winds = [
