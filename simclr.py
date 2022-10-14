@@ -141,17 +141,20 @@ class SimCLR(object):
                     if self.args.simclr_loss:
                         loss_simclr = self.criterion(logits2, labels2)
                         loss_sum = loss + loss_simclr
-                
-                    # loss to have unifrom dist on leaves
-                    if self.args.regularization:
-                        loss_reg = torch.tensor([0], device=self.args.device, dtype=torch.float32)
-                        if self.args.regularization_at_all_level:
-                            for level in range(1, self.args.level_number+1):
+                        
+                    if self.args.pruning:
+                         for level in range(1, self.args.level_number+1):
                                 prob_features = self.probability_vec_with_level(features, level)
                                 probability_leaves = torch.mean(prob_features, dim=0)
                                 probability_leaves_masked = self.masks_for_level[level] * probability_leaves
                                 mean_of_probs_per_level_per_epoch[level] += probability_leaves_masked
                                 probability_leaves_masked = probability_leaves_masked + 1e-8
+
+                    # loss to have unifrom dist on leaves
+                    if self.args.regularization:
+                        loss_reg = torch.tensor([0], device=self.args.device, dtype=torch.float32)
+                        if self.args.regularization_at_all_level:
+                            for level in range(1, self.args.level_number+1):
                                 if self.args.per_level:
                                     loss_reg += (-torch.sum((1/(2**level)) * torch.log(probability_leaves_masked)))
                                 if self.args.per_node:
@@ -160,11 +163,6 @@ class SimCLR(object):
                                             loss_reg -=  (0.5 * torch.log(probability_leaves_masked[2*leftnode]) + 0.5 * torch.log(probability_leaves_masked[2*leftnode+1]))
                         else:
                             loss_reg = torch.tensor([0], device=self.args.device, dtype=torch.float32)
-                            prob_features = self.probability_vec_with_level(features, self.args.level_number)
-                            probability_leaves = torch.mean(prob_features, dim=0)
-                            probability_leaves_masked = self.masks_for_level[self.args.level_number] * probability_leaves
-                            mean_of_probs_per_level_per_epoch[self.args.level_number] += probability_leaves_masked
-                            probability_leaves_masked = probability_leaves_masked + 1e-8
                             if self.args.per_level:
                                 loss_reg += (-torch.sum((1/(2**self.args.level_number)) * torch.log(probability_leaves_masked)))
                             if self.args.per_node:
