@@ -92,6 +92,11 @@ class ContrastiveLearningDataset:
                                                             ContrastiveLearningViewGenerator(
                                                               self.get_simclr_pipeline_transform(224),
                                                               n_views)])),
+                            'imagenet30': lambda: datasets.ImageNet('/shared/sets/datasets/vision/ImageNet', split='train', transform=
+                                                            transforms.Compose([transforms.Resize((224,224)),
+                                                            ContrastiveLearningViewGenerator(
+                                                              self.get_simclr_pipeline_transform(224),
+                                                              n_views)])),
                           }
                         
 

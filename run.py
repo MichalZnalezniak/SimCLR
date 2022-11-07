@@ -16,7 +16,7 @@ parser = argparse.ArgumentParser(description='PyTorch SimCLR')
 parser.add_argument('-data', metavar='DIR', default='./datasets',
                     help='path to dataset')
 parser.add_argument('-dataset-name', default='stl10',
-                    help='dataset name', choices=['stl10', 'cifar10', 'cifar100', 'mnist', 'svhn' , 'fmnist', 'cifar10kclasses','imagenet10','imagenetdogs'])
+                    help='dataset name', choices=['stl10', 'cifar10', 'cifar100', 'mnist', 'svhn' , 'fmnist', 'cifar10kclasses','imagenet10','imagenetdogs', 'imagenet30'])
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet18',
                     choices=model_names,
                     help='model architecture: ' +
@@ -87,7 +87,7 @@ def main():
 
     train_dataset = dataset.get_dataset(args.dataset_name, args.n_views)
 
-    if args.dataset_name == 'imagenet10' or args.dataset_name == 'imagenetdogs':
+    if args.dataset_name == 'imagenet10' or args.dataset_name == 'imagenetdogs' or args.dataset_name == 'imagenet30':
         if args.dataset_name == 'imagenet10':
             train_winds = [
                 "n02056570",
@@ -100,23 +100,56 @@ def main():
                 "n04285008",
                 "n04467665",
                 "n07747607"]
-        else:
+        elif args.dataset_name == 'imagenetdogs':
             train_winds = [
-            "n02085936",
-            "n02086646",
-            "n02088238",
-            "n02091467",
-            "n02097130",
-            "n02099601",
-            "n02101388",
-            "n02101556",
-            "n02102177",
-            "n02105056",
-            "n02105412",
-            "n02105855",
-            "n02107142",
-            "n02110958",
-            "n02112137"]
+                "n02085936",
+                "n02086646",
+                "n02088238",
+                "n02091467",
+                "n02097130",
+                "n02099601",
+                "n02101388",
+                "n02101556",
+                "n02102177",
+                "n02105056",
+                "n02105412",
+                "n02105855",
+                "n02107142",
+                "n02110958",
+                "n02112137"
+            ]
+        elif args.dataset_name == 'imagenet30':
+            train_winds = [
+            "n12267677",
+            "n02690373",
+            "n02701002",
+            "n01698640",
+            "n02787622",
+            "n02793495",
+            "n02837789",
+            "n03196217",
+            "n02268443",
+            "n03255030",
+            "n03384352",
+            "n03443371",
+            "n03452741",
+            "n07697537",
+            "n03544143",
+            "n03717622",
+            "n03788195",
+            "n03804744",
+            "n03891332",
+            "n03938244",
+            "n04086273",
+            "n03187595",
+            "n04147183",
+            "n04252077",
+            "n04254680",
+            "n01498041",
+            "n07745940",
+            "n04389033",
+            "n04442312",
+            "n09472597"]
         train_idx = [idx for idx, target in enumerate(train_dataset.wnids) if target in train_winds]
         train_indices = [idx for idx, target in enumerate(train_dataset.targets) if target in train_idx]
         train_dataset = Subset(train_dataset, train_indices)

@@ -38,7 +38,7 @@ parser = argparse.ArgumentParser(description='PyTorch SimCLR')
 parser.add_argument('-data', metavar='DIR', default='./datasets',
                     help='path to dataset')
 parser.add_argument('-dataset-name', default='stl10',
-                    help='dataset name', choices=['stl10', 'cifar10', 'cifar100', 'mnist', 'svhn', 'fmnist', 'imagenet10','imagenetdogs'])
+                    help='dataset name', choices=['stl10', 'cifar10', 'cifar100', 'mnist', 'svhn', 'fmnist', 'imagenet10','imagenetdogs','imagenet30'])
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet18',
                     choices=model_names,
                     help='model architecture: ' +
@@ -306,7 +306,7 @@ def eval():
         validset = datasets.STL10('./', split='test', transform=transforms.ToTensor(), download=False)
         image_shape = torch.empty((3, 96, 96)) 
         classes = ('airplane', 'bird', 'car', 'cat', 'deer', 'dog', 'horse', 'monkey', 'ship', 'truck')
-    elif args.dataset_name == 'imagenet10' or args.dataset_name == 'imagenetdogs':
+    elif args.dataset_name == 'imagenet10' or args.dataset_name == 'imagenetdogs' or args.dataset_name == 'imagenet30':
         validset = datasets.ImageNet('/shared/sets/datasets/vision/ImageNet', split='val', transform=transforms.Compose([transforms.Resize((224,224)),transforms.ToTensor()]))
         image_shape = torch.empty((3, 224, 224))
         if args.dataset_name == 'imagenet10':
@@ -322,7 +322,7 @@ def eval():
                 "n04467665",
                 "n07747607"
             ]
-        else:
+        elif args.dataset_name == 'imagenetdogs':
             subset_winds = [
                 "n02085936",
                 "n02086646",
@@ -340,6 +340,38 @@ def eval():
                 "n02110958",
                 "n02112137"
             ]
+        elif args.dataset_name == 'imagenet30':
+            subset_winds = [
+            "n12267677",
+            "n02690373",
+            "n02701002",
+            "n01698640",
+            "n02787622",
+            "n02793495",
+            "n02837789",
+            "n03196217",
+            "n02268443",
+            "n03255030",
+            "n03384352",
+            "n03443371",
+            "n03452741",
+            "n07697537",
+            "n03544143",
+            "n03717622",
+            "n03788195",
+            "n03804744",
+            "n03891332",
+            "n03938244",
+            "n04086273",
+            "n03187595",
+            "n04147183",
+            "n04252077",
+            "n04254680",
+            "n01498041",
+            "n07745940",
+            "n04389033",
+            "n04442312",
+            "n09472597"]
         subset_idx = [idx for idx, target in enumerate(validset.wnids) if target in subset_winds]
         subset_indices = [idx for idx, target in enumerate(validset.targets) if target in subset_idx]
         class_names = validset.classes
@@ -366,20 +398,20 @@ def eval():
     for level in range(1, args.level_number+1):
         df_cm = pd.DataFrame(histograms_for_each_label_per_level[level], index = [class1 for class1 in classes],
                     columns = [i for i in range(0,2**level)])
-        df_cm = df_cm.loc[:, (df_cm != 0).any(axis=0)]
+        df_cm_c = df_cm.loc[:, (df_cm != 0).any(axis=0)]
         plt.figure(figsize = (15,10))
         plt.title(f'Confusion matrix at level {level}')
         plt.xlabel('Cluster')
         plt.ylabel('Label')
-        sn.heatmap(df_cm,cmap='viridis', annot=True, fmt='g')
+        sn.heatmap(df_cm_c,cmap='viridis', annot=True, fmt='g')
         buf = io.BytesIO()
         plt.savefig(buf, format='png')
         buf.seek(0)
         image = PIL.Image.open(buf)
         image = transforms.ToTensor()(image)          
         writer.add_image(f'Confusion matrix at level {level}', image)
-        df_cm_p = df_cm.div(df_cm.sum(axis=1), axis=0)
-        df_cm_p = round(df_cm.div(df_cm.sum(axis=1), axis=0)*100,2)
+        df_cm_p = df_cm_c.div(df_cm_c.sum(axis=1), axis=0)
+        df_cm_p = round(df_cm_c.div(df_cm_c.sum(axis=1), axis=0)*100,2)
         plt.figure(figsize = (15,10))
         plt.title(f'Confusion matrix at level {level}')
         plt.xlabel('Cluster')
