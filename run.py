@@ -2,7 +2,7 @@ import argparse
 import torch
 import torch.backends.cudnn as cudnn
 from torch.utils.data import Subset
-from torchvision import models
+from torchvision import models, transforms, datasets
 from data_aug.contrastive_learning_dataset import ContrastiveLearningDataset
 from models.resnet_simclr import ResNetSimCLR
 from simclr import SimCLR
@@ -87,54 +87,20 @@ def main():
 
     train_dataset = dataset.get_dataset(args.dataset_name, args.n_views)
 
-    if args.dataset_name == 'imagenet10' or args.dataset_name == 'imagenetdogs':
-        if args.dataset_name == 'imagenet10':
-            train_winds = [
-                "n02056570",
-                "n02085936",
-                "n02128757",
-                "n02690373",
-                "n02692877",
-                "n03095699",
-                "n04254680",
-                "n04285008",
-                "n04467665",
-                "n07747607"]
-        else:
-            train_winds = [
-            "n02085936",
-            "n02086646",
-            "n02088238",
-            "n02091467",
-            "n02097130",
-            "n02099601",
-            "n02101388",
-            "n02101556",
-            "n02102177",
-            "n02105056",
-            "n02105412",
-            "n02105855",
-            "n02107142",
-            "n02110958",
-            "n02112137"]
-        train_idx = [idx for idx, target in enumerate(train_dataset.wnids) if target in train_winds]
-        train_indices = [idx for idx, target in enumerate(train_dataset.targets) if target in train_idx]
-        train_dataset = Subset(train_dataset, train_indices)
-
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True,
         num_workers=args.workers, pin_memory=True, drop_last=True)
 
     model = ResNetSimCLR(base_model=args.arch, out_dim=args.out_dim, args=args)
-    if args.load_model:
-        model_file = glob.glob(args.save_point + "/*.pth.tar")
-        print(f'Using Pretrained model {model_file[0]}')
-        checkpoint = torch.load(model_file[0])
-        model.load_state_dict(checkpoint['state_dict'])
-        if 'mask' in checkpoint:
-            model.masks_for_level = checkpoint['mask']
 
-
+    validset = datasets.CIFAR10('./', train=False, 
+            transform=transforms.Compose([
+               # transforms.Resize(224),
+                transforms.ToTensor(),
+                # transforms.Normalize([0.4914, 0.4822, 0.4465], [0.2023, 0.1994, 0.2010])
+                ]
+        ), download=True) 
+    valid_loader = torch.utils.data.DataLoader(validset, batch_size=args.batch_size, shuffle=True, num_workers=12, pin_memory=True, drop_last=True)
 
     print(model)
     optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=args.weight_decay)
@@ -145,7 +111,7 @@ def main():
     #  It’s a no-op if the 'gpu_index' argument is a negative integer or None.
     with torch.cuda.device(args.gpu_index):
         simclr = SimCLR(model=model, optimizer=optimizer, scheduler=scheduler, args=args)
-        simclr.train(train_loader)
+        simclr.train(train_loader, valid_loader)
 
 
 if __name__ == "__main__":

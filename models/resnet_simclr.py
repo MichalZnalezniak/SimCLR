@@ -3,7 +3,6 @@ import torchvision.models as models
 import torch
 from torch import Tensor
 
-
 from exceptions.exceptions import InvalidBackboneError
 
 class GumbelSigmoid(nn.Module):
@@ -25,20 +24,7 @@ class GumbelSigmoid(nn.Module):
         >>> input = torch.randn(2)
         >>> output = m(input)
     """
-    
-    # Math:
-    # Sigmoid is a softmax of two logits: a and 0
-    # e^a / (e^a + e^0) = 1 / (1 + e^(0 - a)) = sigm(a)
-    
-    # Gumbel-sigmoid is a gumbel-softmax for same logits:
-    # gumbel_sigm(a) = e^([a+gumbel1]/t) / [ e^([a+gumbel1]/t) + e^(0 + gumbel2/t)]
-    # where t is temperature, gumbel1 and gumbel2 are two samples from gumbel noize: -log(-log(uniform(0,1)))
-    # gumbel_sigm(a) = 1 / ( 1 +  e^(gumbel2/t - [a+gumbel1]/t) = 1 / ( 1+ e^(-[a + gumbel1 - gumbel2]/t)
-    # gumbel_sigm(a) = sigm([a+gumbel1-gumbel2]/t)
-    
-    # For computation reasons:
-    # gumbel1-gumbel2 = -log(-log(uniform1(0,1)) +log(-log(uniform2(0,1)) = -log( log(uniform2(0,1)) / log(uniform1(0,1)) )
-    # gumbel_sigm(a) = sigm([a-log(log(uniform2(0,1))/log(uniform1(0,1))]/t)
+
     
     
     def __init__(self, temp : float = 0.4, eps:float =1e-10) -> None:
@@ -70,19 +56,28 @@ class ResNetSimCLR(nn.Module):
         self.resnet_dict = {"resnet18": models.resnet18(pretrained=False, num_classes=out_dim),
                             "resnet34": models.resnet34(pretrained=False, num_classes=out_dim),
                             "resnet50": models.resnet50(pretrained=False, num_classes=out_dim)}
+        # print(self._get_basemodel('resnet50'))
+        self.f = []
+        for name, module in models.resnet50().named_children():
+            if name == 'conv1':
+                module = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+            if not isinstance(module, nn.Linear) and not isinstance(module, nn.MaxPool2d):
+                self.f.append(module)
+        # encoder
+        self.f = nn.Sequential(*self.f)
+        # # projection head
+        # self.g = nn.Sequential(nn.Linear(2048, 512, bias=False), nn.BatchNorm1d(512),
+        #                        nn.ReLU(inplace=True), nn.Linear(512, args.out_dim, bias=True))
 
-        self.backbone = self._get_basemodel(base_model)
-        dim_mlp = self.backbone.fc.in_features
-
-        # add mlp projection head
-        if args.dataset_name == 'mnist' or args.dataset_name == 'fmnist':
-            self.backbone.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3,
-                                bias=False)
-        self.backbone.fc = nn.Sequential(nn.Linear(dim_mlp, dim_mlp), nn.ReLU(), self.backbone.fc)
         
+        
+
+        self.load_state_dict(torch.load('./pre-trained_models/new_cifar/128_0.5_200_128_1000_model.pth', map_location='cpu'), strict=False)
+
+
         sigmoidType = GumbelSigmoid(temp=args.temp) if args.gumbel else nn.Sigmoid() 
-        self.tree_model = nn.Sequential(nn.Linear(args.out_dim, ((2**(args.level_number+1))-1) - 2**args.level_number), sigmoidType)
-        # self.tree_model_new = nn.Sequential(nn.Linear(args.out_dim, ((2**(args.level_number+1))-1) - 2**args.level_number), nn.Softmax())
+        self.tree_model = nn.Sequential(nn.Linear(2048, ((2**(args.level_number+1))-1) - 2**args.level_number), sigmoidType)
+        self.f.to(args.device)
         self.tree_model = self.tree_model.to(args.device)
 
     def _get_basemodel(self, model_name):
@@ -95,5 +90,6 @@ class ResNetSimCLR(nn.Module):
             return model
 
     def forward(self, x):
-        x = self.backbone(x)
+        x = self.f(x)
+        x = torch.flatten(x, start_dim=1)
         return self.tree_model(x)

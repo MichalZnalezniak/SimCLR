@@ -82,12 +82,12 @@ class ContrastiveLearningDataset:
                                                               self.get_simclr_pipeline_transform(32),
                                                               n_views),
                                                           download=True),
-                            'imagenet10': lambda: datasets.ImageNet('/shared/sets/datasets/vision/ImageNet', split='train', transform=
+                            'imagenet10': lambda: datasets.ImageNet(self.root_folder, split='val', transform=
                                                             transforms.Compose([transforms.Resize((224,224)),
                                                             ContrastiveLearningViewGenerator(
                                                               self.get_simclr_pipeline_transform(224),
                                                               n_views)])),
-                            'imagenetdogs': lambda: datasets.ImageNet('/shared/sets/datasets/vision/ImageNet', split='train', transform=
+                            'imagenetdogs': lambda: datasets.ImageNet(self.root_folder, split='val', transform=
                                                             transforms.Compose([transforms.Resize((224,224)),
                                                             ContrastiveLearningViewGenerator(
                                                               self.get_simclr_pipeline_transform(224),
