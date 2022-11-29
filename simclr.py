@@ -21,7 +21,7 @@ class SimCLR(object):
         self.model = kwargs['model'].to(self.args.device)
         self.optimizer = kwargs['optimizer']
         self.scheduler = kwargs['scheduler']
-        self.writer = SummaryWriter(log_dir=f"./runs/{self.args.dataset_name}_TreeLevel{self.args.level_number}_lossAtAll{self.args.loss_at_all_level}_reg{self.args.regularization}reg_att_all{self.args.regularization_at_all_level}_pernode{self.args.per_node}_perlevel{self.args.per_level}")
+        self.writer = SummaryWriter(log_dir=f"./runs/{self.args.dataset_name}_TreeLevel{self.args.level_number}_lossAtAll{self.args.loss_at_all_level}_reg{self.args.regularization}reg_att_all{self.args.regularization_at_all_level}_pernode{self.args.per_node}_perlevel{self.args.per_level}_name{self.args.name}")
         logging.basicConfig(filename=os.path.join(self.writer.log_dir, 'training.log'), level=logging.DEBUG)
         self.criterion = torch.nn.CrossEntropyLoss().to(self.args.device)
 

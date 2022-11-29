@@ -69,6 +69,7 @@ parser.add_argument('--start_pruning_epoch',  default=0, type=int, help='Epoch w
 parser.add_argument('--nodes_to_prune', default=6, type=int, help='Number of nodes to prune')
 parser.add_argument('--pruning_frequency', default=60, type=int, help='Pruning frequency' )
 parser.add_argument('--simclr_loss', default=True, action='store_true', help="If true train with SimCLR loss")
+parser.add_argument('--name', default=' ')
 
 
 def main():
